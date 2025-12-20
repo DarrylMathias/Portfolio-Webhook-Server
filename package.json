@@ -1,0 +1,20 @@
+{
+  "name": "webhook-server",
+  "version": "1.0.0",
+  "description": "my webhook server",
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "body-parser": "^2.2.1",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "resend": "^6.6.0",
+    "svix": "^1.82.0"
+  }
+}
