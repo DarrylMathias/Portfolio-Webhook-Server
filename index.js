@@ -33,18 +33,34 @@ app.post('/deploy', bodyParser.raw({ type: 'application/json' }), async (req, re
     			return res.status(200).send(`Ignored branch : ${msg.data.branch}`);
 
 		res.status(200).send('Deploy started')
-  		exec("bash /data/data/com.termux/files/home/scripts/deploy/deploy-portfolio.sh", { timeout : 5 * 60 * 1000 }, async (err, stdout, stderr) => {
+  		exec("~/darry/apps/Portfolio-Webhook-Server/scripts/deploy-portfolio.sh", { timeout : 5 * 60 * 1000 }, async (err, stdout, stderr) => {
     			if (err) {
-				const { data, error } = await resend.emails.send({
-		                        from: 'Darryl <help@darrylmathias.tech>',
-		                        to: ['darrylnevmat@gmail.com'],
-		                        subject: `New Build and Deploy Error`,
-		                        html: `
-		                                <h2>Failed New Deploy</h2>
-		                                <h4><strong>Error:</strong><br><br>${err}<br></h4>
-		                        `
-		                });
-				if(data)	console.log(data);
+				console.error("Deploy failed. Invoking Agentic Doctor...");
+				const safeErr = String(err.message || err).replace(/"/g, '\\"');
+				const safeStderr = String(stderr || '').replace(/"/g, '\\"');
+				exec(`bash /data/data/com.termux/files/home/darry/apps/sentinel/scripts/doctor.sh "${safeErr}" "${msg.commit || 'unknown'}" "${safeStderr}"`, async (docErr, docStdout, docStderr) => {
+					const doctorRecovered = !docErr;
+					const subject = doctorRecovered ? `Autonomous Self-Healing: Deploy Restored (${msg.commit || 'main'})` : `Build and Deploy Error (Auto-Triage Recorded)`;
+					const statusBadge = doctorRecovered ? `<span style="color:#10b981;font-weight:bold;">HEALED AUTONOMOUSLY</span>` : `<span style="color:#ef4444;font-weight:bold;">ATTENTION REQUIRED</span>`;
+					try {
+						await resend.emails.send({
+							from: 'Darryl <help@darrylmathias.tech>',
+							to: ['darrylnevmat@gmail.com', 'darrylmathias04@gmail.com'],
+							subject,
+							html: `
+								<h2>${subject}</h2>
+								<p><strong>Status:</strong> ${statusBadge}</p>
+								<p><strong>Commit:</strong> ${msg.commit || 'unknown'}</p>
+								<h4>Initial Error:</h4>
+								<pre style="background:#18181b;color:#f43f5e;padding:12px;border-radius:6px;overflow:auto;">${err}</pre>
+								<h4>Agentic Doctor Output:</h4>
+								<pre style="background:#18181b;color:#a1a1aa;padding:12px;border-radius:6px;overflow:auto;">${docStdout || docStderr || 'Doctor diagnostics completed.'}</pre>
+							`
+						});
+					} catch (mailErr) {
+						console.error("Failed to send doctor mail:", mailErr);
+					}
+				});
       				console.error(err);
       				return; 
     			}
