@@ -2,7 +2,7 @@ const express = require('express')
 const dotenv = require('dotenv')
 const { Webhook } = require('svix')
 const bodyParser = require('body-parser')
-const { exec } = require('child_process')
+const { exec, execFile } = require('child_process')
 const { Resend } = require('resend')
 
 const app = express()
@@ -12,7 +12,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 app.get('/',(req, res, next) => {
     res.send(`Webhook server active on port ${process.env.WEBHOOK_SERVER_PORT}`)
 })
-app.post('/deploy', bodyParser.raw({ type: 'application/json' }), async (req, res, next) => {
+app.post('/deploy', bodyParser.raw({ type: 'application/json', limit: '1mb' }), async (req, res, next) => {
 	try{
 		const payload = req.body;
     		const headers = req.headers;
@@ -36,9 +36,12 @@ app.post('/deploy', bodyParser.raw({ type: 'application/json' }), async (req, re
   		exec("~/darry/apps/Portfolio-Webhook-Server/scripts/deploy-portfolio.sh", { timeout : 5 * 60 * 1000 }, async (err, stdout, stderr) => {
     			if (err) {
 				console.error("Deploy failed. Invoking Agentic Doctor...");
-				const safeErr = String(err.message || err).replace(/"/g, '\\"');
-				const safeStderr = String(stderr || '').replace(/"/g, '\\"');
-				exec(`bash /data/data/com.termux/files/home/darry/apps/sentinel/scripts/doctor.sh "${safeErr}" "${msg.commit || 'unknown'}" "${safeStderr}"`, async (docErr, docStdout, docStderr) => {
+				execFile('bash', [
+					'/data/data/com.termux/files/home/darry/apps/sentinel/scripts/doctor.sh',
+					String(err.message || err),
+					String(msg.commit || 'unknown'),
+					String(stderr || '')
+				], async (docErr, docStdout, docStderr) => {
 					const doctorRecovered = !docErr;
 					const subject = doctorRecovered ? `Autonomous Self-Healing: Deploy Restored (${msg.commit || 'main'})` : `Build and Deploy Error (Auto-Triage Recorded)`;
 					const statusBadge = doctorRecovered ? `<span style="color:#10b981;font-weight:bold;">HEALED AUTONOMOUSLY</span>` : `<span style="color:#ef4444;font-weight:bold;">ATTENTION REQUIRED</span>`;
@@ -91,4 +94,7 @@ app.post('/deploy', bodyParser.raw({ type: 'application/json' }), async (req, re
 		res.status(400).send('Unknown error');
 	}
 })
-app.listen(process.env.WEBHOOK_SERVER_PORT);
+const PORT = process.env.WEBHOOK_SERVER_PORT || 5000;
+app.listen(PORT, '127.0.0.1', () => {
+    console.log(`Webhook server active on 127.0.0.1:${PORT}`);
+});
